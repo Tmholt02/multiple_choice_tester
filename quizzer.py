@@ -13,7 +13,7 @@ class Question:
         self.__choices: list = choices
         self.__correct_idx: int = correct_idx
 
-    def get_topic(self):
+    def get_topic_name(self):
         return self.__topic
 
     def get_prompt(self):
@@ -30,7 +30,7 @@ class Question:
         random.shuffle(new_choices)
         new_correct_idx = new_choices.index(self.__choices[self.__correct_idx])
         return Question(
-            self.get_topic(),
+            self.get_topic_name(),
             self.get_prompt(),
             new_choices,
             new_correct_idx
@@ -45,6 +45,25 @@ class Question:
         return out
 
 
+class Topic:
+
+    def __init__(self, name):
+        self.__questions = []
+        self.__name = name
+
+    def add(self, q: Question):
+        self.__questions.append(q)
+
+    def get_question_list(self):
+        return self.__questions.copy()
+
+    def get_name(self):
+        return self.__name
+
+    def get_shuffled_list(self):
+        return [q.make_shuffled() for q in self.get_question_list()]
+
+
 def main():
     # Use a breakpoint in the code line below to debug your script.
     print("Hello user, please enter your file path below")
@@ -55,9 +74,8 @@ def main():
     wrapper = textwrap.TextWrapper(width=50)
 
     # We need to know where the topics start and stop, and
-    topics = {0: "default"}
-    current_topic = 0
-    questions = []
+    current_topic = Topic("All")
+    topics = [current_topic]
 
     # We will search through each item within the file, and record it
     for item in file.read().strip('\n').split("\n\n"):
@@ -65,21 +83,24 @@ def main():
         # If this item is a topic marker, change the current topic
         # based on our position within questions
         if item[0] == '@':
-            current_topic = len(questions)
-            topics[current_topic] = item[1:]
+            current_topic = Topic(item[1:])
+            topics.append(current_topic)
             continue
 
         # Since its a question, we must split it into parts, and
         # add the question to the main list of Questions
         lines = item.split('\n')
-        questions.append(Question(
-            topics[current_topic],
+        new_question = Question(
+            current_topic.get_name(),
             lines[0],
             lines[1:]
-        ))
+        )
+        topics[0].add(new_question)
+        current_topic.add(new_question)
 
-    # This is an independent copy of all the questions
-    question_set = questions.copy()
+    # Ask the user to pick from a list of topics
+    # Assign choice's questions to question_set
+    question_set = ask_for_topic(topics).get_question_list()
 
     # The main loop will endlessly quiz the user
     while True:
@@ -101,6 +122,19 @@ def main():
             break
 
 
+def ask_for_topic(topics: list):
+    print("------------------------------")
+    print()
+    for index in range(len(topics)):
+        print(f"  {index + 1})  {topics[index].get_name()}")
+    print()
+    a = input("Response: ")
+    while not(a.isnumeric() and 1 <= int(a) <= len(topics)):
+        a = input("Response: ")
+
+    return topics[int(a) - 1]
+
+
 def quiz(question_set):
     # Keep track of total correct
     correct = 0
@@ -118,7 +152,7 @@ def quiz(question_set):
         while len(a) != 1 or not 0 <= (ord(a) - ord('a')) < len(q.get_choices()):
             a = input("Response: ").lower()
 
-        # Check for validity and print feedback
+        # Check for correctness and print feedback
         if ord(a) - ord('a') == q.correct_idx():
             print(color.Fore.GREEN + "Correct!" + color.Fore.RESET)
             correct += 1
